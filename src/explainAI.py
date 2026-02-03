@@ -29,16 +29,11 @@ X_train = X_train[FEATURE_COLUMNS]
 
 shap_sample = X_train.sample(n=5000, random_state=42)
 
-# -----------------------------
-# TreeSHAP
-# -----------------------------
 print("Running TreeSHAP...")
 explainer = shap.TreeExplainer(ranker)
 shap_values = explainer.shap_values(shap_sample)
 
-# -----------------------------
-# Global importance plot
-# -----------------------------
+
 plt.figure()
 shap.summary_plot(
     shap_values,

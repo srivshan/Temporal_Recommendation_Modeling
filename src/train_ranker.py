@@ -85,7 +85,7 @@ def recall_at_k(df, model, k):
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Example K values you want to check
+
 k_values = [1, 5, 10, 20, 50]
 recall_scores = []
 
@@ -94,7 +94,7 @@ for k in k_values:
     recall_scores.append(r)
     print(f"Recall@{k}: {r:.4f}")
 
-# Optional: plot Recall@K
+
 plt.figure(figsize=(8,5))
 plt.plot(k_values, recall_scores, marker='o')
 plt.title("Recall@K vs K")
