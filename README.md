@@ -117,13 +117,3 @@ python build_features.py
 python train_ranker.py
 
 uvicorn src.inference_api:app --reload
-
-🧠 Key Learnings
-
-Interaction features contributed more than hyperparameter tuning.
-
-Hard negative sampling significantly improved ranking separation.
-
-Serving bottlenecks often lie in feature lookup, not model scoring.
-
-Strict temporal validation is critical for recommendation systems.
