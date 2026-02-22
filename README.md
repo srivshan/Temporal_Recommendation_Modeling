@@ -1,5 +1,4 @@
-📘 README 1 Temporal Recommendation Modeling 
-📌 Overview
+📘 README 1 Temporal Recommendation Modeling Overview
 
 This project builds a large-scale, time-aware recommendation system using 31.8M historical transactions to predict near-term customer purchases. The system models user–item interaction dynamics under strict temporal constraints and optimizes ranking quality using learning-to-rank objectives.
 
