@@ -111,9 +111,13 @@ Demonstrates production-aware serving optimization.
 Run pipeline:
 
 python build_labels.py
+
 python build_features.py
+
 python train_ranker.py
+
 uvicorn src.inference_api:app --reload
+
 🧠 Key Learnings
 
 Interaction features contributed more than hyperparameter tuning.
