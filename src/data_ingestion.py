@@ -1,55 +1,39 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, min, max, countDistinct
+from pyspark.sql.functions import col, min, max, to_date
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 spark = (
     SparkSession.builder
     .appName("HM-Ingestion")
-    .master("local[*]")
     .config("spark.sql.shuffle.partitions", "200")
     .config("spark.driver.memory", "8g")
     .getOrCreate()
 )
-DATA_PATH = "data/transactions_train.csv"
+
+schema = StructType([
+    StructField("t_dat", StringType(), True),
+    StructField("customer_id", StringType(), True),
+    StructField("article_id", StringType(), True),
+    StructField("price", DoubleType(), True),
+    StructField("sales_channel_id", IntegerType(), True),
+])
 
 df = (
     spark.read
     .option("header", True)
-    .option("inferSchema", True)
-    .csv(DATA_PATH)
-    .select(
-        col("t_dat"),
-        col("customer_id"),
-        col("article_id"),
-        col("price"),
-        col("sales_channel_id")
-    )
+    .schema(schema)
+    .csv("data/transactions_train.csv")
 )
 
-total_rows = df.count()
-print("Total rows:", total_rows)
+df = df.withColumn("t_dat", to_date(col("t_dat")))
 
+df.cache()
 
-unique_customers = df.select("customer_id").distinct().count()
-print("Unique customers:", unique_customers)
+print("Total rows:", df.count())
+print("Unique customers:", df.select("customer_id").distinct().count())
 
+df.select(min("t_dat"), max("t_dat")).show()
 
-df_dates = df.select(
-    min("t_dat").alias("min_date"),
-    max("t_dat").alias("max_date")
-)
-
-df_dates.show()
-
-
-OUTPUT_PATH = "data/processed/transactions.parquet"
-
-(
-    df
-    .repartition(200)
-    .write
-    .mode("overwrite")
-    .parquet(OUTPUT_PATH)
-)
-
+df.write.mode("overwrite").parquet("data/processed/transactions.parquet")
 
 spark.stop()

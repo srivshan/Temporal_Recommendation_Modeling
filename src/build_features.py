@@ -1,97 +1,126 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, lit, datediff, max as spark_max, count, date_sub
+    col,
+    lit,
+    datediff,
+    max as spark_max,
+    count,
+    countDistinct,
+    avg,
+    broadcast,
+    abs as spark_abs
 )
+from datetime import timedelta
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+transactions_path = BASE_DIR / "data/processed/transactions.parquet"
+pairs_path = BASE_DIR / "data/processed/training_pairs.parquet"
+output_path = BASE_DIR / "data/processed/training_features.parquet"
 
 spark = (
     SparkSession.builder
-    .appName("HM-Feature-Engineering")
+    .appName("HM-Feature-Engineering-Advanced")
     .master("local[*]")
-    .config("spark.sql.shuffle.partitions", "200")
-    .config("spark.driver.memory", "8g")
+    .config("spark.driver.memory", "10g")
+    .config("spark.sql.shuffle.partitions", "80")
     .getOrCreate()
 )
 
-transactions = spark.read.parquet("data/processed/transactions.parquet")
-pairs = spark.read.parquet("data/processed/training_pairs.parquet")
+print("Loading data...")
 
-cutoff_date = transactions.select(spark_max("t_dat")).collect()[0][0]
-history_df = transactions.filter(
-    col("t_dat") <= date_sub(lit(cutoff_date), 7)
-)
+transactions = spark.read.parquet(str(transactions_path))
+pairs = spark.read.parquet(str(pairs_path))
 
-cust_last_txn = (
+# ------------------------------------------------
+# Temporal cutoff
+# ------------------------------------------------
+max_date = transactions.agg(spark_max("t_dat")).first()[0]
+cutoff_date = max_date - timedelta(days=7)
+
+history_df = transactions.filter(col("t_dat") <= cutoff_date)
+history_df = history_df.persist()
+
+# ------------------------------------------------
+# Customer Features
+# ------------------------------------------------
+print("Building customer features...")
+
+cust_features = (
     history_df
     .groupBy("customer_id")
-    .agg(spark_max("t_dat").alias("last_txn_date"))
+    .agg(
+        spark_max("t_dat").alias("last_txn_date"),
+        count("*").alias("cust_total_txn"),
+        countDistinct("article_id").alias("cust_diversity"),
+        avg("price").alias("cust_avg_price")
+    )
     .withColumn(
         "cust_recency_days",
-        datediff(lit(cutoff_date), col("last_txn_date"))
+        datediff(lit(max_date), col("last_txn_date"))
     )
-    .select("customer_id", "cust_recency_days")
 )
 
-txn_30d = history_df.filter(
-    col("t_dat") > date_sub(lit(cutoff_date), 30)
+# ------------------------------------------------
+# Item Features
+# ------------------------------------------------
+print("Building item features...")
+
+item_features = (
+    history_df
+    .groupBy("article_id")
+    .agg(
+        count("*").alias("item_popularity"),
+        avg("price").alias("item_avg_price")
+    )
 )
 
-txn_90d = history_df.filter(
-    col("t_dat") > date_sub(lit(cutoff_date), 90)
-)
+item_features = broadcast(item_features)
 
-cust_freq_30d = txn_30d.groupBy("customer_id").agg(
-    count("*").alias("cust_txn_count_30d")
-)
+# ------------------------------------------------
+# User-Item Interaction Feature (IMPORTANT)
+# ------------------------------------------------
+print("Building interaction features...")
 
-cust_freq_90d = txn_90d.groupBy("customer_id").agg(
-    count("*").alias("cust_txn_count_90d")
-)
-
-item_freq_30d = (
-    txn_30d
-    .groupBy("customer_id", "article_id")
-    .agg(count("*").alias("item_freq_30d"))
-)
-
-item_freq_90d = (
-    txn_90d
-    .groupBy("customer_id", "article_id")
-    .agg(count("*").alias("item_freq_90d"))
-)
-
-item_last_seen = (
+user_item_freq = (
     history_df
     .groupBy("customer_id", "article_id")
-    .agg(spark_max("t_dat").alias("item_last_date"))
-    .withColumn(
-        "item_last_seen_days",
-        datediff(lit(cutoff_date), col("item_last_date"))
-    )
-    .select("customer_id", "article_id", "item_last_seen_days")
+    .count()
+    .withColumnRenamed("count", "user_item_freq")
 )
 
-item_pop_30d = txn_30d.groupBy("article_id").agg(
-    count("*").alias("item_popularity_30d")
-)
-
-item_pop_90d = txn_90d.groupBy("article_id").agg(
-    count("*").alias("item_popularity_90d")
-)
+# ------------------------------------------------
+# Join Everything
+# ------------------------------------------------
+print("Joining features...")
 
 features = (
     pairs
-    .join(cust_last_txn, "customer_id", "left")
-    .join(cust_freq_30d, "customer_id", "left")
-    .join(cust_freq_90d, "customer_id", "left")
-    .join(item_freq_30d, ["customer_id", "article_id"], "left")
-    .join(item_freq_90d, ["customer_id", "article_id"], "left")
-    .join(item_last_seen, ["customer_id", "article_id"], "left")
-    .join(item_pop_30d, "article_id", "left")
-    .join(item_pop_90d, "article_id", "left")
+    .join(cust_features, "customer_id", "left")
+    .join(item_features, "article_id", "left")
+    .join(user_item_freq, ["customer_id", "article_id"], "left")
+    .fillna(0)
 )
 
-features.write.mode("overwrite").parquet(
-    "data/processed/training_features.parquet"
+# ------------------------------------------------
+# Price Affinity Feature
+# ------------------------------------------------
+features = features.withColumn(
+    "price_diff_from_user_avg",
+    spark_abs(col("item_avg_price") - col("cust_avg_price"))
 )
+
+# ------------------------------------------------
+# Final Write
+# ------------------------------------------------
+features = features.repartition(40)
+
+features.write \
+    .mode("overwrite") \
+    .option("compression", "snappy") \
+    .parquet(str(output_path))
+
+print("Advanced feature engineering complete.")
 
 spark.stop()
