@@ -21,13 +21,11 @@ df = pd.read_parquet(FEATURE_PATH)
 with open("outputs/feature_columns.json") as f:
     FEATURE_COLUMNS = json.load(f)
 
-# Keep full dataframe for ranking analysis
+
 X = df[FEATURE_COLUMNS]
 customer_ids = df["customer_id"]
 
-# ------------------------------------------------
-# 1️⃣ GLOBAL SHAP IMPORTANCE
-# ------------------------------------------------
+
 
 print("Running global SHAP analysis...")
 
@@ -50,15 +48,13 @@ plt.close()
 print("Global SHAP saved.")
 
 
-# ------------------------------------------------
-# 2️⃣ PER-CUSTOMER TOP-K EXPLANATION
-# ------------------------------------------------
+
 
 print("Generating per-customer ranking explanation...")
 
 df["score"] = ranker.predict(X)
 
-# Pick a random customer
+
 sample_customer = df["customer_id"].sample(1, random_state=42).values[0]
 customer_df = df[df["customer_id"] == sample_customer].copy()
 
@@ -69,7 +65,7 @@ top_k = customer_df.head(5)
 print(f"\nTop 5 recommendations for customer {sample_customer}")
 print(top_k[["article_id", "score"]])
 
-# SHAP for top 5
+
 top_k_X = top_k[FEATURE_COLUMNS]
 top_k_shap = explainer.shap_values(top_k_X)
 
@@ -89,9 +85,6 @@ for i in range(len(top_k)):
 print("Per-customer explanations saved.")
 
 
-# ------------------------------------------------
-# 3️⃣ RANK DIFFERENCE ANALYSIS (Why Rank1 > Rank2)
-# ------------------------------------------------
 
 if len(top_k) >= 2:
     print("\nAnalyzing rank difference between top 2 items...")
@@ -107,9 +100,6 @@ if len(top_k) >= 2:
     print("Rank comparison saved.")
 
 
-# ------------------------------------------------
-# 4️⃣ Cold-Start Segment Analysis
-# ------------------------------------------------
 
 if "cust_total_txn" in df.columns:
     cold_start = df[df["cust_total_txn"] < 3]

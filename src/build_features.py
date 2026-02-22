@@ -33,18 +33,13 @@ print("Loading data...")
 transactions = spark.read.parquet(str(transactions_path))
 pairs = spark.read.parquet(str(pairs_path))
 
-# ------------------------------------------------
-# Temporal cutoff
-# ------------------------------------------------
 max_date = transactions.agg(spark_max("t_dat")).first()[0]
 cutoff_date = max_date - timedelta(days=7)
 
 history_df = transactions.filter(col("t_dat") <= cutoff_date)
 history_df = history_df.persist()
 
-# ------------------------------------------------
-# Customer Features
-# ------------------------------------------------
+
 print("Building customer features...")
 
 cust_features = (
@@ -62,9 +57,7 @@ cust_features = (
     )
 )
 
-# ------------------------------------------------
-# Item Features
-# ------------------------------------------------
+
 print("Building item features...")
 
 item_features = (
@@ -78,9 +71,7 @@ item_features = (
 
 item_features = broadcast(item_features)
 
-# ------------------------------------------------
-# User-Item Interaction Feature (IMPORTANT)
-# ------------------------------------------------
+
 print("Building interaction features...")
 
 user_item_freq = (
@@ -90,9 +81,7 @@ user_item_freq = (
     .withColumnRenamed("count", "user_item_freq")
 )
 
-# ------------------------------------------------
-# Join Everything
-# ------------------------------------------------
+
 print("Joining features...")
 
 features = (
@@ -103,17 +92,13 @@ features = (
     .fillna(0)
 )
 
-# ------------------------------------------------
-# Price Affinity Feature
-# ------------------------------------------------
+
 features = features.withColumn(
     "price_diff_from_user_avg",
     spark_abs(col("item_avg_price") - col("cust_avg_price"))
 )
 
-# ------------------------------------------------
-# Final Write
-# ------------------------------------------------
+
 features = features.repartition(40)
 
 features.write \

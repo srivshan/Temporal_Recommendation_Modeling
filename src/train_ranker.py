@@ -12,11 +12,11 @@ DROP_COLS = [
     "customer_id",
     "article_id",
     "label",
-    "last_txn_date"   # add this
+    "last_txn_date"   
 ]
 
 
-# Split by customer
+
 unique_customers = df["customer_id"].unique()
 np.random.seed(42)
 val_customers = np.random.choice(
@@ -28,7 +28,7 @@ val_customers = np.random.choice(
 train_df = df[~df["customer_id"].isin(val_customers)].copy()
 val_df = df[df["customer_id"].isin(val_customers)].copy()
 
-# IMPORTANT: sort before grouping
+
 train_df = train_df.sort_values("customer_id")
 val_df = val_df.sort_values("customer_id")
 
@@ -45,20 +45,17 @@ ranker = lgb.LGBMRanker(
     metric="ndcg",
     boosting_type="gbdt",
 
-    # Increase model capacity
-    num_leaves=63,              # more complex trees
-    max_depth=-1,               # allow full depth
-    min_child_samples=20,       # allow finer splits
+    
+    num_leaves=63,              
+    max_depth=-1,               
+    min_child_samples=20,       
 
-    # More trees, smaller learning rate
     learning_rate=0.03,
     n_estimators=800,
 
-    # Regularization
     subsample=0.9,
     colsample_bytree=0.9,
 
-    # Ranking-specific improvement
     reg_lambda=1.0,
     reg_alpha=0.1,
 

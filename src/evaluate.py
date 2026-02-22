@@ -3,17 +3,15 @@ import numpy as np
 import joblib
 from sklearn.metrics import average_precision_score, ndcg_score
 
-# Load artifacts
 model = joblib.load("outputs/lgbm_ranker.pkl")
 
 X_val = pd.read_parquet("data/processed/X_val.parquet")
 y_val = pd.read_parquet("data/processed/y_val.parquet")
 group_val = pd.read_csv("data/processed/group_val.csv").values.flatten()
 
-# Predict
+
 scores = model.predict(X_val)
 
-# Reconstruct customer ids (safe because sorted during training)
 customer_ids = np.repeat(np.arange(len(group_val)), group_val)
 
 val_df = pd.DataFrame({
@@ -22,7 +20,7 @@ val_df = pd.DataFrame({
     "score": scores
 })
 
-# Evaluation
+
 def evaluate_k(df, k=10):
     recalls, maps, mrrs, ndcgs = [], [], [], []
 
