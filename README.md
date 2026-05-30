@@ -22,7 +22,7 @@ Strict customer-level validation split
 
 No look-ahead bias
 
-🏗️ System Architecture
+System Architecture
 
 Raw Transactions (31.8M)
 ↓
